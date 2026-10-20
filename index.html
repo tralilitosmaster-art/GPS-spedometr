@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+
+<meta
+    name="viewport"
+    content="width=device-width,
+             initial-scale=1.0,
+             maximum-scale=1.0,
+             user-scalable=no"
+>
+
+<title>GPS Speedometer</title>
+
+<style>
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: #000;
+}
+
+body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Arial, sans-serif;
+}
+
+.app {
+    width: 100%;
+    height: 100%;
+    position: relative;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* =========================
+   SPEED
+========================= */
+
+.speed {
+    display: flex;
+    gap: 18px;
+    align-items: center;
+    justify-content: center;
+}
+
+/* =========================
+   7 SEGMENT DIGIT
+========================= */
+
+.digit {
+    position: relative;
+
+    width: 120px;
+    height: 210px;
+}
+
+.segment {
+    position: absolute;
+
+    background: #161616;
+
+    border-radius: 8px;
+
+    transition:
+        background 0.15s ease,
+        box-shadow 0.15s ease;
+}
+
+/* horizontal */
+
+.a,
+.g,
+.d {
+    width: 82px;
+    height: 15px;
+
+    left: 19px;
+}
+
+.a {
+    top: 5px;
+}
+
+.g {
+    top: 97px;
+}
+
+.d {
+    bottom: 5px;
+}
+
+/* vertical */
+
+.b,
+.c,
+.e,
+.f {
+    width: 15px;
+    height: 82px;
+}
+
+.b {
+    right: 4px;
+    top: 19px;
+}
+
+.c {
+    right: 4px;
+    bottom: 19px;
+}
+
+.e {
+    left: 4px;
+    bottom: 19px;
+}
+
+.f {
+    left: 4px;
+    top: 19px;
+}
+
+/* =========================
+   STATUS
+========================= */
+
+.unit {
+    margin-top: 35px;
+
+    font-size: 20px;
+    font-weight: bold;
+
+    letter-spacing: 5px;
+
+    color: #555;
+}
+
+.status {
+    position: absolute;
+
+    bottom: 25px;
+
+    width: 100%;
+
+    text-align: center;
+
+    font-size: 13px;
+    font-weight: bold;
+
+    color: #444;
+
+    padding: 0 20px;
+}
+
+/* =========================
+   GPS BUTTON
+========================= */
+
+.start {
+    position: absolute;
+
+    top: 25px;
+    right: 25px;
+
+    padding: 10px 15px;
+
+    border: 1px solid #222;
+    border-radius: 10px;
+
+    background: #080808;
+    color: #777;
+
+    font-size: 12px;
+
+    cursor: pointer;
+}
+
+.start:active {
+    transform: scale(0.96);
+}
+
+.start:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* =========================
+   MOBILE
+========================= */
+
+@media (max-width: 500px) {
+
+    .digit {
+        width: 90px;
+        height: 160px;
+    }
+
+    .speed {
+        gap: 12px;
+    }
+
+    .a,
+    .g,
+    .d {
+        width: 62px;
+        height: 11px;
+
+        left: 14px;
+    }
+
+    .a {
+        top: 4px;
+    }
+
+    .g {
+        top: 74px;
+    }
+
+    .d {
+        bottom: 4px;
+    }
+
+    .b,
+    .c,
+    .e,
+    .f {
+        width: 11px;
+        height: 62px;
+    }
+
+    .b {
+        right: 3px;
+        top: 14px;
+    }
+
+    .c {
+        right: 3px;
+        bottom: 14px;
+    }
+
+    .e {
+        left: 3px;
+        bottom: 14px;
+    }
+
+    .f {
+        left: 3px;
+        top: 14px;
+    }
+
+    .unit {
+        margin-top: 25px;
+        font-size: 16px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+    <button class="start" id="startBtn" onclick="startGPS()">
+        START GPS
+    </button>
+
+    <div class="speed">
+
+        <!-- DIGIT 1 -->
+        <div class="digit" id="digit1">
+
+            <div class="segment a"></div>
+            <div class="segment b"></div>
+            <div class="segment c"></div>
+            <div class="segment d"></div>
+            <div class="segment e"></div>
+            <div class="segment f"></div>
+            <div class="segment g"></div>
+
+        </div>
+
+        <!-- DIGIT 2 -->
+        <div class="digit" id="digit2">
+
+            <div class="segment a"></div>
+            <div class="segment b"></div>
+            <div class="segment c"></div>
+            <div class="segment d"></div>
+            <div class="segment e"></div>
+            <div class="segment f"></div>
+            <div class="segment g"></div>
+
+        </div>
+
+    </div>
+
+    <div class="unit">
+        KM/H
+    </div>
+
+    <div class="status" id="status">
+        GPS: ОЖИДАНИЕ
+    </div>
+
+</div>
+
+<script>
+
+/* =========================================
+   7 SEGMENT MAP
+========================================= */
+
+const numbers = {
+
+    0: ["a","b","c","d","e","f"],
+
+    1: ["b","c"],
+
+    2: ["a","b","g","e","d"],
+
+    3: ["a","b","c","d","g"],
+
+    4: ["f","g","b","c"],
+
+    5: ["a","f","g","c","d"],
+
+    6: ["a","f","g","e","c","d"],
+
+    7: ["a","b","c"],
+
+    8: ["a","b","c","d","e","f","g"],
+
+    9: ["a","b","c","d","f","g"]
+
+};
+
+
+/* =========================================
+   ELEMENTS
+========================================= */
+
+const digit1 = document.getElementById("digit1");
+const digit2 = document.getElementById("digit2");
+
+const statusElement =
+    document.getElementById("status");
+
+const startBtn =
+    document.getElementById("startBtn");
+
+
+/* =========================================
+   STATE
+========================================= */
+
+let speed = 0;
+
+let gpsWorking = false;
+
+let gpsAccuracy = null;
+
+let lastGPSUpdate = 0;
+
+let watchId = null;
+
+let isConnecting = false;
+
+/* fallback: подсчёт скорости по координатам */
+let lastPos = null;
+let lastPosTime = 0;
+
+
+/* =========================================
+   SET DIGIT
+========================================= */
+
+function setDigit(element, number) {
+
+    const active = numbers[number];
+
+    const segments =
+        element.querySelectorAll(".segment");
+
+    segments.forEach(segment => {
+
+        const name =
+            [...segment.classList]
+            .find(className =>
+                "abcdefg".includes(className)
+            );
+
+        segment.classList.remove("active");
+
+        if (active.includes(name)) {
+
+            segment.classList.add("active");
+
+        }
+
+    });
+}
+
+
+/* =========================================
+   COLOR
+========================================= */
+
+function setColor(color) {
+
+    let activeColor;
+
+    if (color === "red") {
+
+        activeColor = "#ff2020";
+
+    }
+
+    else if (color === "orange") {
+
+        activeColor = "#ff8a00";
+
+    }
+
+    else {
+
+        activeColor = "#ffffff";
+
+    }
+
+
+    document
+        .querySelectorAll(".segment.active")
+        .forEach(segment => {
+
+            segment.style.background =
+                activeColor;
+
+            segment.style.boxShadow =
+                `0 0 8px ${activeColor},
+                 0 0 25px ${activeColor}aa`;
+
+        });
+
+}
+
+
+/* =========================================
+   UPDATE DISPLAY
+========================================= */
+
+function updateDisplay() {
+
+    speed = Math.max(
+        0,
+        Math.min(99, Math.round(speed))
+    );
+
+    const text =
+        String(speed).padStart(2, "0");
+
+    setDigit(
+        digit1,
+        Number(text[0])
+    );
+
+    setDigit(
+        digit2,
+        Number(text[1])
+    );
+
+    updateStatus();
+
+}
+
+
+/* =========================================
+   GPS STATUS
+========================================= */
+
+function updateStatus() {
+
+    const now = Date.now();
+
+    /* идёт подключение */
+    if (isConnecting) {
+
+        statusElement.textContent =
+            "GPS: ПОДКЛЮЧЕНИЕ...";
+
+        statusElement.style.color =
+            "#888";
+
+        setColor("white");
+
+        return;
+
+    }
+
+
+    /* GPS не работает вообще */
+    if (!gpsWorking) {
+
+        statusElement.textContent =
+            "GPS: НЕТ СИГНАЛА";
+
+        statusElement.style.color =
+            "#ff2020";
+
+        setColor("red");
+
+        return;
+
+    }
+
+
+    /* GPS давно не обновлялся */
+    if (now - lastGPSUpdate > 5000) {
+
+        statusElement.textContent =
+            "GPS: ПОТЕРЯН";
+
+        statusElement.style.color =
+            "#ff2020";
+
+        setColor("red");
+
+        return;
+
+    }
+
+
+    /* плохая точность */
+    if (
+        gpsAccuracy !== null &&
+        gpsAccuracy > 35
+    ) {
+
+        statusElement.textContent =
+            "GPS: НЕСТАБИЛЬНЫЙ";
+
+        statusElement.style.color =
+            "#ff8a00";
+
+        setColor("orange");
+
+        return;
+
+    }
+
+
+    /* всё ок */
+    statusElement.textContent =
+        "GPS: OK";
+
+    statusElement.style.color =
+        "#ffffff";
+
+    setColor("white");
+
+}
+
+
+/* =========================================
+   GPS
+========================================= */
+
+function startGPS() {
+
+    /* уже запущен */
+    if (watchId !== null) return;
+
+    if (!navigator.geolocation) {
+
+        gpsWorking = false;
+        updateStatus();
+        return;
+
+    }
+
+
+    /* secure context check */
+    if (!window.isSecureContext) {
+
+        statusElement.textContent =
+            "GPS: НУЖЕН HTTPS / localhost";
+
+        statusElement.style.color =
+            "#ff2020";
+
+        setColor("red");
+
+        return;
+
+    }
+
+
+    isConnecting = true;
+
+    updateStatus();
+
+    startBtn.disabled = true;
+
+    startBtn.textContent = "GPS ON";
+
+
+    watchId = navigator.geolocation.watchPosition(
+
+        function(position) {
+
+            isConnecting = false;
+
+            gpsWorking = true;
+
+            lastGPSUpdate = Date.now();
+
+            gpsAccuracy =
+                position.coords.accuracy;
+
+
+            let gpsSpeed = null;
+
+
+            /* 1. Пытаемся взять скорость из GPS */
+            if (
+                position.coords.speed !== null &&
+                position.coords.speed >= 0
+            ) {
+
+                gpsSpeed =
+                    position.coords.speed * 3.6;
+
+            }
+
+
+            /* 2. Fallback: считаем по координатам */
+            else if (lastPos !== null) {
+
+                const now =
+                    position.timestamp;
+
+                const dt =
+                    (now - lastPosTime) / 1000;
+
+                if (dt > 0.2) {
+
+                    const R = 6371000;
+
+                    const toRad =
+                        d => d * Math.PI / 180;
+
+                    const dLat =
+                        toRad(
+                            position.coords.latitude -
+                            lastPos.latitude
+                        );
+
+                    const dLon =
+                        toRad(
+                            position.coords.longitude -
+                            lastPos.longitude
+                        );
+
+                    const a =
+                        Math.sin(dLat / 2) ** 2 +
+                        Math.cos(
+                            toRad(lastPos.latitude)
+                        ) *
+                        Math.cos(
+                            toRad(position.coords.latitude)
+                        ) *
+                        Math.sin(dLon / 2) ** 2;
+
+                    const c =
+                        2 * Math.atan2(
+                            Math.sqrt(a),
+                            Math.sqrt(1 - a)
+                        );
+
+                    const distance = R * c;
+
+                    gpsSpeed =
+                        (distance / dt) * 3.6;
+
+                    /* отсекаем явный шум GPS */
+                    if (gpsSpeed < 1.5) gpsSpeed = 0;
+
+                }
+
+            }
+
+
+            /* запоминаем позицию для fallback */
+            lastPos = {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude
+            };
+
+            lastPosTime = position.timestamp;
+
+
+            /* 3. Применяем скорость */
+            if (gpsSpeed !== null) {
+
+                /* защита от резких скачков */
+                if (
+                    Math.abs(gpsSpeed - speed) > 30
+                ) {
+
+                    gpsSpeed = speed;
+
+                }
+
+                speed +=
+                    (gpsSpeed - speed) * 0.35;
+
+            }
+
+
+            updateDisplay();
+
+        },
+
+
+        function(error) {
+
+            isConnecting = false;
+
+            gpsWorking = false;
+
+            watchId = null;
+
+            startBtn.disabled = false;
+
+            startBtn.textContent = "START GPS";
+
+            let msg = "GPS: ОШИБКА";
+
+            if (error.code === 1) {
+
+                msg = "GPS: ДОСТУП ЗАПРЕЩЁН";
+
+            }
+
+            else if (error.code === 2) {
+
+                msg = "GPS: НЕТ ДАННЫХ";
+
+            }
+
+            else if (error.code === 3) {
+
+                msg = "GPS: ТАЙМАУТ";
+
+            }
+
+            statusElement.textContent = msg;
+
+            statusElement.style.color = "#ff2020";
+
+            setColor("red");
+
+
+            /* при таймауте пробуем снова */
+            if (error.code === 3) {
+
+                setTimeout(startGPS, 2000);
+
+            }
+
+        },
+
+
+        {
+
+            enableHighAccuracy: true,
+
+            maximumAge: 1000,
+
+            timeout: 15000
+
+        }
+
+    );
+
+}
+
+
+/* =========================================
+   INITIAL
+========================================= */
+
+setDigit(digit1, 0);
+setDigit(digit2, 0);
+
+setColor("red");
+
+
+/* периодически обновляем статус */
+setInterval(() => {
+
+    updateStatus();
+
+}, 500);
+
+</script>
+
+</body>
+  </html>
