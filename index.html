@@ -324,27 +324,16 @@ body {
 ========================================= */
 
 const numbers = {
-
     0: ["a","b","c","d","e","f"],
-
     1: ["b","c"],
-
     2: ["a","b","g","e","d"],
-
     3: ["a","b","c","d","g"],
-
     4: ["f","g","b","c"],
-
     5: ["a","f","g","c","d"],
-
     6: ["a","f","g","e","c","d"],
-
     7: ["a","b","c"],
-
     8: ["a","b","c","d","e","f","g"],
-
     9: ["a","b","c","d","f","g"]
-
 };
 
 
@@ -354,33 +343,29 @@ const numbers = {
 
 const digit1 = document.getElementById("digit1");
 const digit2 = document.getElementById("digit2");
-
-const statusElement =
-    document.getElementById("status");
-
-const startBtn =
-    document.getElementById("startBtn");
+const statusElement = document.getElementById("status");
+const startBtn = document.getElementById("startBtn");
 
 
 /* =========================================
    STATE
 ========================================= */
 
-let speed = 0;
+let speed = 0;                 // сглаженная скорость (км/ч)
+let gpsSpeedRaw = 0;           // сырая скорость из GPS (км/ч)
 
 let gpsWorking = false;
-
 let gpsAccuracy = null;
-
 let lastGPSUpdate = 0;
+let lastSpeedUpdate = 0;       // время последнего сглаживания
 
 let watchId = null;
-
 let isConnecting = false;
 
-/* fallback: подсчёт скорости по координатам */
 let lastPos = null;
 let lastPosTime = 0;
+
+let lastRendered = -1;         // для избежания лишних перерисовок
 
 
 /* =========================================
@@ -388,28 +373,15 @@ let lastPosTime = 0;
 ========================================= */
 
 function setDigit(element, number) {
-
     const active = numbers[number];
-
-    const segments =
-        element.querySelectorAll(".segment");
+    const segments = element.querySelectorAll(".segment");
 
     segments.forEach(segment => {
-
-        const name =
-            [...segment.classList]
-            .find(className =>
-                "abcdefg".includes(className)
-            );
+        const name = [...segment.classList]
+            .find(className => "abcdefg".includes(className));
 
         segment.classList.remove("active");
-
-        if (active.includes(name)) {
-
-            segment.classList.add("active");
-
-        }
-
+        if (active.includes(name)) segment.classList.add("active");
     });
 }
 
@@ -419,70 +391,35 @@ function setDigit(element, number) {
 ========================================= */
 
 function setColor(color) {
-
     let activeColor;
 
-    if (color === "red") {
+    if (color === "red") activeColor = "#ff2020";
+    else if (color === "orange") activeColor = "#ff8a00";
+    else activeColor = "#ffffff";
 
-        activeColor = "#ff2020";
-
-    }
-
-    else if (color === "orange") {
-
-        activeColor = "#ff8a00";
-
-    }
-
-    else {
-
-        activeColor = "#ffffff";
-
-    }
-
-
-    document
-        .querySelectorAll(".segment.active")
-        .forEach(segment => {
-
-            segment.style.background =
-                activeColor;
-
-            segment.style.boxShadow =
-                `0 0 8px ${activeColor},
-                 0 0 25px ${activeColor}aa`;
-
-        });
-
+    document.querySelectorAll(".segment.active").forEach(segment => {
+        segment.style.background = activeColor;
+        segment.style.boxShadow =
+            `0 0 8px ${activeColor}, 0 0 25px ${activeColor}aa`;
+    });
 }
 
 
 /* =========================================
-   UPDATE DISPLAY
+   RENDER (вызывается из rAF)
 ========================================= */
 
-function updateDisplay() {
+function render() {
+    const shown = Math.max(0, Math.min(99, Math.round(speed)));
 
-    speed = Math.max(
-        0,
-        Math.min(99, Math.round(speed))
-    );
+    if (shown !== lastRendered) {
+        lastRendered = shown;
 
-    const text =
-        String(speed).padStart(2, "0");
+        const text = String(shown).padStart(2, "0");
 
-    setDigit(
-        digit1,
-        Number(text[0])
-    );
-
-    setDigit(
-        digit2,
-        Number(text[1])
-    );
-
-    updateStatus();
-
+        setDigit(digit1, Number(text[0]));
+        setDigit(digit2, Number(text[1]));
+    }
 }
 
 
@@ -491,85 +428,39 @@ function updateDisplay() {
 ========================================= */
 
 function updateStatus() {
-
     const now = Date.now();
 
-    /* идёт подключение */
     if (isConnecting) {
-
-        statusElement.textContent =
-            "GPS: ПОДКЛЮЧЕНИЕ...";
-
-        statusElement.style.color =
-            "#888";
-
+        statusElement.textContent = "GPS: ПОДКЛЮЧЕНИЕ...";
+        statusElement.style.color = "#888";
         setColor("white");
-
         return;
-
     }
 
-
-    /* GPS не работает вообще */
     if (!gpsWorking) {
-
-        statusElement.textContent =
-            "GPS: НЕТ СИГНАЛА";
-
-        statusElement.style.color =
-            "#ff2020";
-
+        statusElement.textContent = "GPS: НЕТ СИГНАЛА";
+        statusElement.style.color = "#ff2020";
         setColor("red");
-
         return;
-
     }
 
-
-    /* GPS давно не обновлялся */
     if (now - lastGPSUpdate > 5000) {
-
-        statusElement.textContent =
-            "GPS: ПОТЕРЯН";
-
-        statusElement.style.color =
-            "#ff2020";
-
+        statusElement.textContent = "GPS: ПОТЕРЯН";
+        statusElement.style.color = "#ff2020";
         setColor("red");
-
         return;
-
     }
 
-
-    /* плохая точность */
-    if (
-        gpsAccuracy !== null &&
-        gpsAccuracy > 35
-    ) {
-
-        statusElement.textContent =
-            "GPS: НЕСТАБИЛЬНЫЙ";
-
-        statusElement.style.color =
-            "#ff8a00";
-
+    if (gpsAccuracy !== null && gpsAccuracy > 35) {
+        statusElement.textContent = "GPS: НЕСТАБИЛЬНЫЙ";
+        statusElement.style.color = "#ff8a00";
         setColor("orange");
-
         return;
-
     }
 
-
-    /* всё ок */
-    statusElement.textContent =
-        "GPS: OK";
-
-    statusElement.style.color =
-        "#ffffff";
-
+    statusElement.textContent = "GPS: OK";
+    statusElement.style.color = "#ffffff";
     setColor("white");
-
 }
 
 
@@ -578,223 +469,154 @@ function updateStatus() {
 ========================================= */
 
 function startGPS() {
-
-    /* уже запущен */
     if (watchId !== null) return;
 
     if (!navigator.geolocation) {
-
         gpsWorking = false;
         updateStatus();
         return;
-
     }
 
-
-    /* secure context check */
     if (!window.isSecureContext) {
-
-        statusElement.textContent =
-            "GPS: НУЖЕН HTTPS / localhost";
-
-        statusElement.style.color =
-            "#ff2020";
-
+        statusElement.textContent = "GPS: НУЖЕН HTTPS / localhost";
+        statusElement.style.color = "#ff2020";
         setColor("red");
-
         return;
-
     }
-
 
     isConnecting = true;
-
     updateStatus();
 
     startBtn.disabled = true;
-
     startBtn.textContent = "GPS ON";
 
-
     watchId = navigator.geolocation.watchPosition(
-
         function(position) {
-
             isConnecting = false;
-
             gpsWorking = true;
-
             lastGPSUpdate = Date.now();
+            gpsAccuracy = position.coords.accuracy;
 
-            gpsAccuracy =
-                position.coords.accuracy;
+            let raw = null;
 
-
-            let gpsSpeed = null;
-
-
-            /* 1. Пытаемся взять скорость из GPS */
-            if (
-                position.coords.speed !== null &&
-                position.coords.speed >= 0
-            ) {
-
-                gpsSpeed =
-                    position.coords.speed * 3.6;
-
+            /* 1. coords.speed */
+            if (position.coords.speed !== null &&
+                position.coords.speed >= 0) {
+                raw = position.coords.speed * 3.6;
             }
 
-
-            /* 2. Fallback: считаем по координатам */
+            /* 2. fallback по координатам */
             else if (lastPos !== null) {
-
-                const now =
-                    position.timestamp;
-
-                const dt =
-                    (now - lastPosTime) / 1000;
+                const now = position.timestamp;
+                const dt = (now - lastPosTime) / 1000;
 
                 if (dt > 0.2) {
-
                     const R = 6371000;
+                    const toRad = d => d * Math.PI / 180;
 
-                    const toRad =
-                        d => d * Math.PI / 180;
+                    const dLat = toRad(
+                        position.coords.latitude - lastPos.latitude
+                    );
+                    const dLon = toRad(
+                        position.coords.longitude - lastPos.longitude
+                    );
 
-                    const dLat =
-                        toRad(
-                            position.coords.latitude -
-                            lastPos.latitude
-                        );
-
-                    const dLon =
-                        toRad(
-                            position.coords.longitude -
-                            lastPos.longitude
-                        );
-
-                    const a =
-                        Math.sin(dLat / 2) ** 2 +
-                        Math.cos(
-                            toRad(lastPos.latitude)
-                        ) *
-                        Math.cos(
-                            toRad(position.coords.latitude)
-                        ) *
+                    const a = Math.sin(dLat / 2) ** 2 +
+                        Math.cos(toRad(lastPos.latitude)) *
+                        Math.cos(toRad(position.coords.latitude)) *
                         Math.sin(dLon / 2) ** 2;
-
-                    const c =
-                        2 * Math.atan2(
-                            Math.sqrt(a),
-                            Math.sqrt(1 - a)
-                        );
-
+                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
                     const distance = R * c;
 
-                    gpsSpeed =
-                        (distance / dt) * 3.6;
+                    raw = (distance / dt) * 3.6;
 
-                    /* отсекаем явный шум GPS */
-                    if (gpsSpeed < 1.5) gpsSpeed = 0;
-
+                    /* отсекаем шум на месте */
+                    if (raw < 2) raw = 0;
                 }
-
             }
 
-
-            /* запоминаем позицию для fallback */
             lastPos = {
                 latitude: position.coords.latitude,
                 longitude: position.coords.longitude
             };
-
             lastPosTime = position.timestamp;
 
+            /* мёртвая зона: GPS-шум вокруг нуля */
+            if (raw !== null && raw < 2) raw = 0;
 
-            /* 3. Применяем скорость */
-            if (gpsSpeed !== null) {
-
-                /* защита от резких скачков */
-                if (
-                    Math.abs(gpsSpeed - speed) > 30
-                ) {
-
-                    gpsSpeed = speed;
-
-                }
-
-                speed +=
-                    (gpsSpeed - speed) * 0.35;
-
+            if (raw !== null) {
+                gpsSpeedRaw = raw;
             }
 
-
-            updateDisplay();
-
+            updateStatus();
         },
 
-
         function(error) {
-
             isConnecting = false;
-
             gpsWorking = false;
-
             watchId = null;
 
             startBtn.disabled = false;
-
             startBtn.textContent = "START GPS";
 
             let msg = "GPS: ОШИБКА";
-
-            if (error.code === 1) {
-
-                msg = "GPS: ДОСТУП ЗАПРЕЩЁН";
-
-            }
-
-            else if (error.code === 2) {
-
-                msg = "GPS: НЕТ ДАННЫХ";
-
-            }
-
-            else if (error.code === 3) {
-
-                msg = "GPS: ТАЙМАУТ";
-
-            }
+            if (error.code === 1) msg = "GPS: ДОСТУП ЗАПРЕЩЁН";
+            else if (error.code === 2) msg = "GPS: НЕТ ДАННЫХ";
+            else if (error.code === 3) msg = "GPS: ТАЙМАУТ";
 
             statusElement.textContent = msg;
-
             statusElement.style.color = "#ff2020";
-
             setColor("red");
 
-
-            /* при таймауте пробуем снова */
             if (error.code === 3) {
-
                 setTimeout(startGPS, 2000);
-
             }
-
         },
 
-
         {
-
             enableHighAccuracy: true,
-
             maximumAge: 1000,
-
             timeout: 15000
-
         }
-
     );
+}
 
+
+/* =========================================
+   ANIMATION LOOP (сглаживание + рендер)
+========================================= */
+
+function loop() {
+    const now = Date.now();
+    const dt = (now - lastSpeedUpdate) / 1000;
+    lastSpeedUpdate = now;
+
+    /* если GPS давно не было — сбрасываем */
+    if (!gpsWorking || now - lastGPSUpdate > 3000) {
+        gpsSpeedRaw = 0;
+    }
+
+    /* целевая скорость с гистерезисом */
+    let target = gpsSpeedRaw;
+
+    /* маленькая скорость → сразу 0, без плавного сползания */
+    if (target < 2) target = 0;
+
+    /* экспоненциальное сглаживание по времени (tau = 0.4 с) */
+    if (dt > 0 && dt < 1) {
+        const k = 1 - Math.exp(-dt / 0.4);
+        speed += (target - speed) * k;
+    }
+
+    /* если target = 0 и speed почти 0 — жёстко в 0 */
+    if (target === 0 && speed < 1) speed = 0;
+
+    /* страховка от залипания */
+    if (speed < 0) speed = 0;
+    if (speed > 99) speed = 99;
+
+    render();
+    requestAnimationFrame(loop);
 }
 
 
@@ -804,18 +626,16 @@ function startGPS() {
 
 setDigit(digit1, 0);
 setDigit(digit2, 0);
-
 setColor("red");
 
+lastSpeedUpdate = Date.now();
 
-/* периодически обновляем статус */
-setInterval(() => {
+requestAnimationFrame(loop);
 
-    updateStatus();
-
-}, 500);
+setInterval(updateStatus, 500);
 
 </script>
 
 </body>
-  </html>
+</html>
+
